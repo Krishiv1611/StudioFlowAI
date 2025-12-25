@@ -1,0 +1,87 @@
+ # Complete Database Schema Reference
+
+This document outlines the schema for all tables in the application, encompassing existing tables (from code and your description) and the suggested additions to support full functionality.
+
+## I. Existing Tables
+
+### 1. User (`users`)
+*Source: [user_model.py](file:///d:/projects/StudioFlowAI/backend/app/models/user_model.py)*
+- **`id`**: `Integer` (PK)
+- **`email`**: `String` (Unique, Not Null)
+- **`full_name`**: `String` (Not Null)
+- **`hashed_password`**: `String` (Not Null)
+- **`brand_voice_style`**: `String` (Not Null) *(Note: User prompt mentioned `brand_voice_desc`)*
+
+### 2. KnowledgeVault (`knowledge_vault`)
+*Source: [vault_model.py](file:///d:/projects/StudioFlowAI/backend/app/models/vault_model.py)*
+- **`id`**: `Integer` (PK)
+- **`user_id`**: `Integer` (FK -> `users.id`, Not Null)
+- **`content_chunk`**: `String` (Not Null)
+- **`embedding`**: `Vector(384)` (Not Null)
+
+### 3. ContentDraft (`content_drafts`)
+*Source: User Prompt*
+- **`id`**: `Integer` (PK)
+- **`project_id`**: `Integer` (FK -> `projects.id`)
+- **`status`**: `String` (e.g., 'Draft', 'Approved')
+- **`platform`**: `String` (e.g., 'LinkedIn', 'Twitter')
+- **`content`**: `Text` *(Implied: stores the actual post text)*
+- **`created_at`**: `DateTime`
+- **`updated_at`**: `DateTime`
+
+### 4. AgentTrace (`agent_traces`)
+*Source: User Prompt*
+- **`id`**: `Integer` (PK)
+- **`agent_name`**: `String`
+- **`step_summary`**: `String`
+- **`full_output`**: `JSON` or `Text`
+- **`created_at`**: `DateTime`
+
+### 5. PostMetrics (`post_metrics`)
+*Source: User Prompt*
+- **`id`**: `Integer` (PK)
+- **`post_id`**: `Integer` (FK -> `content_drafts.id`)
+- **`likes`**: `Integer`
+- **`comments`**: `Integer`
+- **`sentiment_score`**: `Float`
+- **`updated_at`**: `DateTime`
+
+---
+
+## II. Suggested Additional Tables
+
+### 6. Project (`projects`)
+*Purpose: To organize content drafts into campaigns or folders.*
+- **`id`**: `Integer` (PK)
+- **`user_id`**: `Integer` (FK -> `users.id`)
+- **`name`**: `String` (Not Null)
+- **`description`**: `String`
+- **`status`**: `String` (e.g., 'Active', 'Archived')
+- **`created_at`**: `DateTime`
+
+### 7. SocialAccount (`social_accounts`)
+*Purpose: To store OAuth tokens for publishing.*
+- **`id`**: `Integer` (PK)
+- **`user_id`**: `Integer` (FK -> `users.id`)
+- **`platform`**: `String` (Enum: 'linkedin', 'twitter', 'instagram')
+- **`access_token`**: `String` (Encrypted)
+- **`refresh_token`**: `String` (Encrypted)
+- **`token_expires_at`**: `DateTime`
+- **`profile_name`**: `String`
+
+### 8. BrandVoice (`brand_voices`)
+*Purpose: To allow multiple brand personas per user (Decouples from User table).*
+- **`id`**: `Integer` (PK)
+- **`user_id`**: `Integer` (FK -> `users.id`)
+- **`name`**: `String` (e.g., "Professional", "Witty")
+- **`description`**: `Text` (The prompt/instruction)
+- **`is_default`**: `Boolean`
+
+### 9. MediaAsset (`media_assets`)
+*Purpose: To manage uploaded images/videos for posts.*
+- **`id`**: `Integer` (PK)
+- **`user_id`**: `Integer` (FK -> `users.id`)
+- **`file_url`**: `String` (Not Null)
+- **`file_type`**: `String` (e.g., 'image/png')
+- **`alt_text`**: `String`
+- **`uploaded_at`**: `DateTime`

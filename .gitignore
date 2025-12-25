@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+env/
+
+# Environment Variables
+.env
+.env.*
+
+# IDEs
+.vscode/
+.idea/
+
+# Large ML Files & Data
+*.pkl
+*.h5
+*.pth
+*.pt
+backend/app/ml/data/
+backend/app/ml/models/
+*.csv
+
+# Logs
+*.log
+

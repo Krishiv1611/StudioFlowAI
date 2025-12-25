@@ -1,0 +1,56 @@
+# --- Core Web Framework & Auth ---
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+pyjwt
+python-multipart
+passlib
+
+# --- Agentic Orchestration & Base Framework ---
+langgraph
+langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+
+# --- Multi-Model LLM Integrations ---
+langchain-google-genai
+langchain-groq
+langchain-huggingface
+
+# --- Multi-Model Embedding Integrations ---
+# These allow your "Brand Vault" to turn text into vectors
+sentence-transformers      # Core engine for local HuggingFace embeddings
+huggingface_hub            # To pull models from the HF cloud
+
+# --- Trend Intelligence & Search ---
+tavily-python
+
+# --- RAG & Vector Processing ---
+sqlalchemy
+sqlmodel
+pgvector                   # PostgreSQL vector extension support
+pypdf
+tiktoken
+psycopg2-binary
+unstructured               # Advanced document partitioning (PDFs, HTML, etc.)
+beautifulsoup4             # HTML parsing
+
+# --- System Utilities ---
+websockets                 # For real-time Agent Log streaming
+loguru
+alembic
+python-dotenv
+httpx
+numpy                     # Essential for vector math
+#ml
+scikit-learn  # For loading and running the Random Forest/Regression models
+pandas        # For data manipulation during retraining
+joblib        # For efficient model loading/saving (.pkl files)
+ipykernel
+scipy
+matplotlib
+seaborn
