@@ -19,6 +19,9 @@ def get_model(provider: str):
         )
     else:
         # Default to Groq
+        if not settings.GROQ_API_KEY:
+             return ChatGroq(temperature=0, model_name="llama3-70b-8192", api_key="missing_key")
+
         return ChatGroq(
             temperature=0, 
             model_name="llama3-70b-8192",
@@ -58,7 +61,14 @@ def engineer_node(state: AgentState):
 
     try:
         response = agent.invoke({"messages": [HumanMessage(content=prompt)]})
-        engineer_report = response["output"]
+        
+        # Handle Output Parsing
+        if isinstance(response, dict) and "messages" in response:
+             engineer_report = response["messages"][-1].content
+        elif isinstance(response, dict) and "output" in response:
+             engineer_report = response["output"]
+        else:
+             engineer_report = str(response)
         
         # Store Report for RAG
         store_in_vault.invoke({

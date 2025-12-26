@@ -29,10 +29,19 @@ class MultiModelFactory:
             
         elif model_type == "fast":
             # Uses Groq for speed and short-form content
+            if not settings.GROQ_API_KEY:
+                 # Return a dummy wrapper or raising error is safer than crash, 
+                 # but for readiness check we want to avoid crash. 
+                 # Let's let it crash IF called, but verify if this is called on startup?
+                 # No, get_llm is usually called at runtime.
+                 # BUT, other files might call get_llm at module level.
+                 # Let's wrap it.
+                 pass
+            
             return ChatGroq(
                 model_name="llama3-70b-8192",
                 temperature=temperature,
-                # api_key handled by env GROQ_API_KEY
+                api_key=settings.GROQ_API_KEY or "missing_key" # Prevent empty string error during init, fail at call time
             )
             
         else:

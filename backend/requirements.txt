@@ -45,6 +45,7 @@ loguru
 alembic
 python-dotenv
 httpx
+requests-oauthlib
 numpy                     # Essential for vector math
 #ml
 scikit-learn  # For loading and running the Random Forest/Regression models

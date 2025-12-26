@@ -9,6 +9,7 @@ class SocialPlatform(enum.Enum):
     linkedin = "linkedin"
     twitter = "twitter"
     instagram = "instagram"
+    google = "google"
 
 
 class SocialAccount(Base):

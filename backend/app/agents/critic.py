@@ -1,11 +1,12 @@
 from app.agents.state import AgentState
 from app.agents.tools import predict_virality_score
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain.agents import create_agent, AgentExecutor
+from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.config.settings import settings
 import os
+import re
 
 # Define tools
 tools = [predict_virality_score]
@@ -19,6 +20,9 @@ def get_model(provider: str):
         )
     else:
         # Default to Groq
+        if not settings.GROQ_API_KEY:
+             return ChatGroq(temperature=0, model_name="llama3-70b-8192", api_key="missing_key")
+             
         return ChatGroq(
             temperature=0, 
             model_name="llama3-70b-8192",
@@ -37,17 +41,9 @@ def critic_node(state: AgentState):
     model = get_model(provider)
     
     # Create Agent (User's requested syntax)
-    # Note: Depending on the actual signature of create_agent in the installed version,
-    # this might need a check. Assuming strictly user's syntax:
     agent = create_agent(model, tools=tools)
     
     # Execute
-    # If create_agent returns a Runnable/Graph, we invoke it.
-    # If it returns an AgentRunnable that needs an Executor, we wrap it.
-    # Modern create_agent usually returns a CompiledGraph (if LangGraph based)
-    # or a Runnable (if functional). 
-    # To be safe and follow the snippet "agent = create_agent(...)", we assume it's runnable.
-    
     prompt_text = f"""
     Evaluate this draft:
     {draft}
@@ -75,7 +71,7 @@ def critic_node(state: AgentState):
         output = f"Error in critic agent: {e}"
     
     # Parse score (same logic as before)
-    import re
+    # Parse score (same logic as before)
     score_match = re.search(r"Score:?\s*(\d+\.\d+)", output)
     score = float(score_match.group(1)) if score_match else 0.0
     

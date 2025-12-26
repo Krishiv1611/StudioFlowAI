@@ -6,15 +6,10 @@ from app.models.vault_model import KnowledgeVault
 from app.services.rag_service import RagService
 from pydantic import BaseModel
 
+from app.schemas.vault_schema import VaultItem, SearchQuery
+
 router = APIRouter(prefix="/vault", tags=["Knowledge Vault"])
 rag_service = RagService() # Generic service
-
-class VaultItem(BaseModel):
-    content: str
-    
-class SearchQuery(BaseModel):
-    query: str
-    limit: int = 5
 
 @router.post("/add")
 def add_to_vault(

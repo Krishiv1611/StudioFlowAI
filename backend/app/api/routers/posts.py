@@ -1,17 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user
 from app.models.user_model import User
 from app.models.content_draft import ContentDraft
 from app.models.project_model import Project
 
-router = APIRouter(prefix="/posts", tags=["Posts & Drafts"])
-
 from app.models.content_draft import ContentPlatform
-class PostCreate(BaseModel):
-    content: str
-    platform: str = "twitter"
-    scheduled_for: Optional[datetime] = None
+from app.schemas.post_schema import PostCreate, PostUpdate
+from datetime import datetime
+from typing import Optional
+
+router = APIRouter(prefix="/posts", tags=["Posts & Drafts"])
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_post_manually(
@@ -74,16 +73,7 @@ def get_post(
         Project.user_id == current_user.id,
         ContentDraft.id == post_id
     ).first()
-    
-from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel
-from fastapi import Response, status
-
-class PostUpdate(BaseModel):
-    content: Optional[str] = None
-    status: Optional[str] = None
-    scheduled_for: Optional[datetime] = None
+    return post
 
 @router.patch("/{post_id}")
 def update_post(

@@ -4,7 +4,24 @@ from app.api.routers import agents, oauth, auth, vault, posts, calendar
 # Import other existing routers if any (not shown in list_dir but likely exist)
 import os
 
+
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="StudioFlow AI Backend")
+
+# CORS Configuration
+origins = [
+    "http://localhost:5173", # Frontend Dev
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount Static Files for Charts
 static_dir = os.path.join(os.path.dirname(__file__), "..", "static")

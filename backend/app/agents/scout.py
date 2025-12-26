@@ -19,6 +19,13 @@ def get_model(provider: str):
         )
     else:
         # Default to Groq
+        if not settings.GROQ_API_KEY:
+            # Prevent crash, allow agent to fail gracefully later or now
+            # We can't return None easily if expected to be a ChatModel.
+            # But we can let it fail at runtime or return a dummy that errors when invoked.
+            # For now, pass a dummy key so it instantiates, but errors on call.
+            return ChatGroq(temperature=0.7, model_name="llama3-70b-8192", api_key="missing_key")
+            
         return ChatGroq(
             temperature=0.7, 
             model_name="llama3-70b-8192",
@@ -28,7 +35,7 @@ def get_model(provider: str):
 def scout_node(state: AgentState):
     """
     The Trend Scout looks for trending topics based on the input AND brand voice.
-    Refactored to use 'create_agent' and supports multiple model providers.
+    Refactored to use 'create_react_agent' and supports multiple model providers.
     """
     user_id = state.get("user_id", 1)
     topic = state.get("input", "latest tech trends")

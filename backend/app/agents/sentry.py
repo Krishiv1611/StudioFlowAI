@@ -4,12 +4,12 @@ from app.config.database import SessionLocal
 from app.models.content_draft import ContentDraft, ContentPlatform
 from app.models.project_model import Project
 from langchain_core.messages import HumanMessage
-from langchain.agents import create_agent, AgentExecutor
-from langchain.agents.format_scratchpad import format_to_openai_functions
-from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
-from langchain.tools.render import format_tool_to_openai_function
-from langchain_community.tools.convert_to_openai import format_tool_to_openai_function
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents import create_agent
+# from langchain.agents.format_scratchpad import format_to_openai_functions
+# from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
+# from langchain.tools.render import format_tool_to_openai_function
+# from langchain_community.tools.convert_to_openai import format_tool_to_openai_function
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.config.settings import settings
 import os
@@ -31,89 +31,56 @@ def sentry_node(state: AgentState):
     
     # Define Tools
     tools = [post_to_platform, store_in_vault, save_draft_to_db]
-    llm_with_tools = llm.bind_tools(tools)
-    
-    # Current Context
-    draft = state.get("draft", "")
-    best_time = state.get("best_time", "now")
-    user_id = state.get("user_id", 1)
-    approval_status = state.get("sentry_approval_status", "pending")
-    
-    # If already approved/rejected by Human (via API), we skip the brain and just execute
-    if approval_status in ["approved", "published", "rejected"]:
-        # Logic to handle API-triggered resumption
-        if approval_status == "approved":
-             # Post & Store
-             save_draft_to_db.invoke({"user_id": user_id, "content": draft, "status": "published", "platform": "Twitter"})
-             res = post_to_platform.invoke({"content": draft, "platform": "Twitter", "schedule_time": best_time})
-             store_in_vault.invoke({"content": f"PUBLISHED: {draft}", "user_id": user_id})
-             return {"sentry_approval_status": "published", "chat_history": [HumanMessage(content=f"Published: {res}")]}
-        return {} # Pass through if rejected
+    # Create Agent
+    # Note: We trust the prompts to guide the agent to call tools.
+    agent = create_agent(llm, tools=tools)
 
     # Prompt
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are Sentry, the Final Gatekeeper and Safety Officer.
+    prompt_text = f"""
+    You are Sentry, the Final Gatekeeper and Safety Officer.
+    
+    1. REVIEW the draft: '{draft}'
+    2. DECIDE status:
+       - 'approved': If excellent.
+       - 'rejected': If unsafe.
+       - 'pending': If unsure.
+       
+    3. EXECUTE:
+       - If Approved AND 'best_time' is now: Call `post_to_platform` (args: content='{draft}', platform='Twitter', schedule_time='now'). Call `save_draft_to_db` (args: status='published', user_id={user_id}).
+       - If Approved AND 'best_time' is future: Call `save_draft_to_db` (args: status='scheduled', scheduled_for='{best_time}', user_id={user_id}).
+       - If Pending: Call `save_draft_to_db` (args: status='pending_approval', scheduled_for='{best_time}', user_id={user_id}).
+       - If Rejected: Call `save_draft_to_db` (args: status='rejected', user_id={user_id}).
+    
+    4. RESPOND: Final Answer one word: 'published', 'scheduled', 'pending', or 'rejected'.
+    """
+    
+    try:
+        response = agent.invoke({"messages": [HumanMessage(content=prompt_text)]})
         
-        1. REVIEW the draft: '{draft}'
-        2. DECIDE status:
-           - 'approved': If excellent.
-           - 'rejected': If unsafe.
-           - 'pending': If unsure.
-           
-        3. EXECUTE:
-           - If Approved AND 'best_time' is now: Call `post_to_platform`. Save to DB as 'published'.
-           - If Approved AND 'best_time' is future: Pass `scheduled_for={best_time}` to `save_draft_to_db` with status='scheduled'.
-           - If Pending: Call `save_draft_to_db` with status='pending_approval' and `scheduled_for={best_time}` (so user sees proposed time).
-           - If Rejected: Save with status='rejected'.
+        # Parse output
+        status = "pending"
+        output_text = ""
+        if isinstance(response, dict) and "messages" in response:
+             output_text = response["messages"][-1].content
+        elif isinstance(response, dict) and "output" in response:
+             output_text = response["output"]
+        else:
+             output_text = str(response)
+             
+        # Infer status from output if tools didn't set it (Agent might just say "approved")
+        lower_out = output_text.lower()
+        if "published" in lower_out: status = "published"
+        elif "scheduled" in lower_out: status = "scheduled"
+        elif "rejected" in lower_out: status = "rejected"
+        else: status = "pending"
         
-        4. RESPOND: Final Answer one word: 'published', 'scheduled', 'pending', or 'rejected'.
-        """),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
-    
-    # ...
-    
-    response = llm_with_tools.invoke(prompt.format(draft=draft, best_time=best_time, agent_scratchpad=[]))
-    # ... (Rest of logic needs minimal update as the prompt drives the tool usage)
-    # But we need to update the manual tool execution loop to ensure args are passed.
-    
-    status = "pending" # Default
-    
-    if hasattr(response, 'tool_calls') and response.tool_calls:
-        for tool_call in response.tool_calls:
-            t_name = tool_call['name']
-            t_args = tool_call['args']
-            
-            # Auto-inject keys if missed by LLM
-            if t_name == "save_draft_to_db":
-                if "user_id" not in t_args: t_args["user_id"] = user_id
-                if "content" not in t_args: t_args["content"] = draft
-                # If LLM didn't pass scheduled_for, inject best_time if pending
-                if t_args.get("status") in ["pending_approval", "scheduled"] and "scheduled_for" not in t_args:
-                     t_args["scheduled_for"] = str(best_time)
-                     
-                save_draft_to_db.invoke(t_args)
-                status = t_args.get('status', 'pending')
-                    
-            elif t_name == "post_to_platform":
-                post_to_platform.invoke(t_args)
-                status = "published"
-                
-            elif t_name == "store_in_vault":
-                store_in_vault.invoke(t_args)
-
-    # Fallback
-    if not hasattr(response, 'tool_calls') or not response.tool_calls:
-         save_draft_to_db.invoke({
-             "user_id": user_id, 
-             "content": draft, 
-             "status": "pending_approval", 
-             "platform": "Twitter",
-             "scheduled_for": str(best_time)
-         })
-         status = "pending"
-
-    return {
-        "sentry_approval_status": status,
-        "chat_history": [HumanMessage(content=f"Sentry decision: {status}")]
-    }
+        return {
+            "sentry_approval_status": status,
+            "chat_history": [HumanMessage(content=f"Sentry decision: {status}: {output_text}")]
+        }
+        
+    except Exception as e:
+        return {
+            "sentry_approval_status": "error",
+            "chat_history": [HumanMessage(content=f"Sentry error: {e}")]
+        }

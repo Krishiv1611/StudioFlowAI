@@ -1,3 +1,9 @@
+from datetime import datetime
+import pandas as pd
+import matplotlib.pyplot as plt
+import uuid
+import os
+
 from langchain_core.tools import tool
 from typing import List, Dict, Any, Optional
 from tavily import TavilyClient
@@ -5,21 +11,24 @@ from sqlmodel import Session, create_engine
 from app.config.settings import settings
 from app.services.scraper import ScraperService
 from app.services.rag_service import RagService
+from app.services.ml_service import MLService
+from app.models.content_draft import ContentDraft, ContentPlatform
+from app.models.project_model import Project
+from app.config.database import SessionLocal
+from app.models.social_account import SocialAccount
+
+# Initialize Clients
+try:
+    tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+except Exception:
+    tavily_client = None
+scraper_service = ScraperService()
+rag_service = RagService()
+ml_service = MLService()
 
 # Create Engine
 DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL)
-
-# For simplicity in tools, we might need a way to get a session. 
-# Usually tools are stateless or have deps injected.
-# I'll instantiate generic services for now.
-
-# Initialize Clients
-tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
-scraper_service = ScraperService()
-rag_service = RagService()
-from app.services.ml_service import MLService
-ml_service = MLService()
 
 # --- Trend Scout Tools ---
 
@@ -30,6 +39,8 @@ def search_web(query: str, max_results: int = 5) -> str:
     Useful for finding news, trends, or broad information.
     """
     try:
+        if not tavily_client:
+            return "Error: Tavily API Key not configured."
         response = tavily_client.search(query, max_results=max_results)
         # Simplify response to string
         results = response.get("results", [])
@@ -107,10 +118,29 @@ def predict_virality_score(post_content: str, platform: str = "Twitter") -> floa
     
     return ml_service.predict_virality(features)
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import uuid
-import os
+@tool
+def recommend_schedule(platform: str = "Twitter", topic_category: str = "General", follower_count: int = 0) -> str:
+    """
+    Predicts the optimal posting schedule (Day & Time) based on platform and topic.
+    Returns a list of top 3 recommended slots with predicted reach.
+    """
+    features = {
+        "platform": platform,
+        "topic_category": topic_category,
+        "follower_count": follower_count,
+        "hour_of_day": 12, # Defaults, will be overridden by grid search
+        "day_of_week": "Monday"
+    }
+    
+    recs = ml_service.recommend_schedule(features)
+    if not recs:
+        return "No recommendations available (Model skipped or data missing)."
+        
+    output = ["**Top Recommended Slots:**"]
+    for i, r in enumerate(recs, 1):
+        output.append(f"{i}. {r['day']} at {r['hour']}:00 (Reach: ~{int(r['predicted_reach'])})")
+        
+    return "\n".join(output)
 
 # --- Helper for Social Data ---
 SOCIAL_DATA_PATH = os.path.join(settings.BASE_DIR, 'app', 'ml', 'data', 'Social Media Engagement Dataset.csv')
@@ -201,7 +231,6 @@ def monitor_social_media(user_id: int) -> str:
     # 1. Check Linked Accounts
     with Session(engine) as session:
         # Avoid circular import if possible, or import inside
-        from app.models.social_account import SocialAccount
         linked = session.query(SocialAccount).filter(SocialAccount.user_id == user_id).all()
         
     if not linked:
@@ -247,10 +276,6 @@ def monitor_social_media(user_id: int) -> str:
     except Exception as e:
         return f"Error analyzing social data: {e}"
 
-from app.models.content_draft import ContentDraft, ContentPlatform
-from app.models.project_model import Project
-from app.config.database import SessionLocal
-
 @tool
 def save_draft_to_db(user_id: int, content: str, status: str = "draft", platform: str = "twitter", draft_id: int = None, scheduled_for: str = None) -> str:
     """
@@ -259,7 +284,6 @@ def save_draft_to_db(user_id: int, content: str, status: str = "draft", platform
     Returns the Draft ID.
     """
     try:
-        from datetime import datetime
         schedule_dt = None
         if scheduled_for and scheduled_for.lower() != "now":
             # Attempt basic parsing, product should use robust dateparser

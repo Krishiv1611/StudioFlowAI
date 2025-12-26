@@ -6,17 +6,9 @@ from app.core.security import create_access_token, verify_password, get_password
 from app.models.user_model import User
 from pydantic import BaseModel, EmailStr
 
+from app.schemas.user_schema import UserSignup, Token
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-class UserSignup(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str
-    brand_voice_style: str = "Professional"
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
 
 @router.post("/signup", response_model=Token)
 def signup(user_in: UserSignup, db: Session = Depends(get_db)):

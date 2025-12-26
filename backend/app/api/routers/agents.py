@@ -7,14 +7,12 @@ from langchain_core.messages import HumanMessage
 import uuid
 import asyncio
 
+from app.schemas.agent_schema import AgentRequest
+
 router = APIRouter(prefix="/agent", tags=["Agent Workflow"])
 
 # In-memory store for background task results (Product should use DB/Redis)
-params_store = {} 
-
-class AgentRequest:
-    input: str
-    model_provider: str = "gemini"
+params_store = {}
 
 @router.post("/run")
 async def run_agent(

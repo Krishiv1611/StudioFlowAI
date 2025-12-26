@@ -4,7 +4,7 @@ import operator
 class AgentState(TypedDict):
     input: str
     user_id: int
-    model_provider: str = "groq" # Options: "groq", "gemini"
+    model_provider: str # Options: "groq", "gemini"
     chat_history: List[Any]
     
     # Content Generation Flow
@@ -23,8 +23,6 @@ class AgentState(TypedDict):
     # New Analyst/Engineer Logic
     follower_count: int # For Reach
     best_time: str
-    predicted_reach: float
-    analyst_report: str
     predicted_reach: float
     analyst_report: str
     engineer_report: str

@@ -14,6 +14,16 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     TAVILY_API_KEY: str = ""
+
+    # OAuth Credentials
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    TWITTER_CLIENT_ID: str = ""
+    TWITTER_CLIENT_SECRET: str = ""
+    LINKEDIN_CLIENT_ID: str = ""
+    LINKEDIN_CLIENT_SECRET: str = ""
+    INSTAGRAM_APP_ID: str = ""
+    INSTAGRAM_APP_SECRET: str = ""
     
     # Database
     DATABASE_URL: str = "postgresql://user:password@localhost/dbname"

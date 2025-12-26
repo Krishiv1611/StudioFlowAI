@@ -2,7 +2,14 @@ from app.agents.state import AgentState
 from langchain_core.messages import HumanMessage
 from langchain_groq import ChatGroq
 
-llm = ChatGroq(temperature=0.7, model_name="llama3-70b-8192")
+try:
+    from app.config.settings import settings
+    if settings.GROQ_API_KEY:
+        llm = ChatGroq(temperature=0.7, model_name="llama3-70b-8192", api_key=settings.GROQ_API_KEY)
+    else:
+        llm = None
+except Exception:
+    llm = None
 
 def scripter_node(state: AgentState):
     """
@@ -34,6 +41,9 @@ def scripter_node(state: AgentState):
         
         Keep it engaging, concise, and use hashtags.
         """
+    
+    if not llm:
+        return {"draft": "Error: Groq API Key not configured.", "revision_count": revision_count}
     
     response = llm.invoke([HumanMessage(content=prompt)])
     

@@ -51,3 +51,31 @@ def get_current_user(
         raise HTTPException(status_code=404, detail="User not found")
         
     return user
+
+
+reusable_oauth2_optional = OAuth2PasswordBearer(
+    tokenUrl="/auth/login",
+    auto_error=False
+)
+
+def get_current_user_optional(
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(reusable_oauth2_optional)
+) -> Optional[User]:
+    if not token:
+        return None
+        
+    try:
+        payload = jwt.decode(
+            token, SECRET_KEY, algorithms=[ALGORITHM]
+        )
+        token_data = payload.get("sub")
+        
+        if token_data is None:
+             return None
+    except (JWTError, ValidationError):
+        return None
+        
+    user = db.query(User).filter(User.email == token_data).first()
+    return user
+

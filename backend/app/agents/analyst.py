@@ -1,5 +1,5 @@
 from app.agents.state import AgentState
-from app.services.ml_service import MLService
+from app.agents.tools import recommend_schedule
 from langchain_core.messages import HumanMessage
 from langchain.agents import create_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -7,8 +7,8 @@ from app.config.settings import settings
 import os
 import json
 
-# Initialize Service
-ml_service = MLService()
+# Define Tools
+tools = [recommend_schedule]
 
 def get_model(provider: str):
     # Analyst needs logic, Gemini Flash is good.
@@ -21,42 +21,62 @@ def get_model(provider: str):
 def analyst_node(state: AgentState):
     """
     The Analyst Agent determines the optimal posting schedule and predicts reach.
-    It simulates different times using the ML model to find the best slot.
+    Now powered by an Agent Brain using 'recommend_schedule' tool.
     """
     user_id = state.get("user_id", 1)
     draft = state.get("draft", "")
     trend_data = state.get("trend_data", "")
-    
-    # 1. Extract/Infer missing features for the model using LLM
-    # We need: platform, topic_category, follower_count (from user profile/state)
-    # For now, we mock follower_count or get from state
     follower_count = state.get("follower_count", 50000) # Default/Mock
     
-    # 2. Run Schedule Optimization (Grid Search via ML Service)
-    base_features = {
-        "platform": "Twitter", # Default or extract from draft
-        "topic_category": "Technology", # Default or extract
-        "follower_count": follower_count,
-        "hour_of_day": 12, # Placeholder
-        "day_of_week": "Monday" # Placeholder
-    }
+    # Initialize Logic
+    llm = get_model("gemini")
+    agent = create_agent(llm, tools=tools)
     
-    recommendations = ml_service.recommend_schedule(base_features)
+    prompt = f"""
+    You are the Senior Data Analyst.
     
-    best_slot = recommendations[0] if recommendations else {"day": "Monday", "hour": 12, "predicted_reach": 0}
+    Your goal is to determine the optimal posting schedule for the user's content.
     
-    # 3. Generate Analysis Report
-    output = f"""
-    ### Analyst Report
+    Constraint: You MUST use the `recommend_schedule` tool to get real data predictions.
     
-    **Predicted Reach**: ~{int(best_slot['predicted_reach'])} Impressions
-    **Optimal Posting Time**: {best_slot['day']} at {best_slot['hour']}:00
+    Context:
+    - Follower Count: {follower_count}
+    - Platform: Twitter (Default)
+    - Trend: {trend_data}
     
-    **Why?**: Based on your follower count ({follower_count}) and topic, this time slot maximizes engagement probability according to our regression model.
+    1. Call `recommend_schedule` (args: platform='Twitter', follower_count={follower_count}, topic_category='Technology').
+    2. Analyze the output.
+    3. Return a Final Report summarizing the best time and predicted reach.
     """
     
-    return {
-        "analyst_report": output,
-        "best_time": f"{best_slot['day']} {best_slot['hour']}:00",
-        "predicted_reach": best_slot['predicted_reach']
-    }
+    try:
+        response = agent.invoke({"messages": [HumanMessage(content=prompt)]})
+        
+        # Parse output
+        output_text = ""
+        if isinstance(response, dict) and "messages" in response:
+             output_text = response["messages"][-1].content
+        elif isinstance(response, dict) and "output" in response:
+             output_text = response["output"]
+        else:
+             output_text = str(response)
+             
+        # We can extract structured data regex if needed, or just trust the report
+        # For state compatibility, we might want 'best_time' string.
+        # Simple heuristic or Regex
+        import re
+        # Try to find "Monday at 12:00" pattern
+        match = re.search(r"(\w+ at \d{1,2}:\d{2})", output_text)
+        best_time = match.group(1) if match else "12:00"
+        
+        return {
+            "analyst_report": output_text,
+            "best_time": best_time,
+            # "predicted_reach": ... (hard to extract from text without structured output, but report has it)
+        }
+        
+    except Exception as e:
+        return {
+            "analyst_report": f"Analysis failed: {e}",
+            "best_time": "12:00" 
+        }
